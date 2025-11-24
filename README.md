@@ -11,3 +11,14 @@ The object of the game is to get a high score, but more than that, bouncing this
 
 ![bounce! gameplay](https://github.com/TheKettleBlack/bounce/blob/main/gameplay.png)
 
+0.0.2 11/24/25
+
+-particle kill cleanup
+
+-ball death at screen bottom, not world bottom
+
+-click and release animations
+
+0.0.1 11/23/25
+
+-initial release 
