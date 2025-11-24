@@ -15,12 +15,8 @@ class Particle(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, self.color, (4,4), 4)
         self.rect = self.image.get_rect(center=(0,0))
 
-    def update(self):
+    def update(self, cameraOffsetY):
         self.pos += self.direction * self.speed
-        if (
-            self.pos.x < -200 or
-            self.pos.x > 1200 or
-            self.pos.y < -5000 or
-            self.pos.y > 5000
-        ):
+        screenY = self.pos.y - cameraOffsetY
+        if screenY < -200 or screenY > 1200:
             self.kill()

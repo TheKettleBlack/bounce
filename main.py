@@ -30,6 +30,7 @@ lineGroup = pygame.sprite.Group()
 gemGroup = pygame.sprite.Group()
 skullGroup = pygame.sprite.GroupSingle()
 particleGroup = pygame.sprite.Group()
+beaconGroup = pygame.sprite.Group()
 
 # Window icon
 iconImage = pygame.image.load("img/favicon.png")
@@ -143,7 +144,7 @@ class Ball(pygame.sprite.Sprite):
             cameraOffsetY -= (50 - screenY)
 
         # Game over
-        if self.rect.y >= HEIGHT:
+        if screenY >= HEIGHT:
             gameOver = True
 
 ball = Ball(((WIDTH // 2)-64), (HEIGHT // 2)-120)
@@ -193,6 +194,27 @@ class Line(pygame.sprite.Sprite):
         )
         self.rect = self.image.get_rect(topleft=(min_x - totalWidth, min_y - totalWidth))
         self.mask = pygame.mask.from_surface(self.image)
+
+class Beacon(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__()
+        self.pos = pos
+        self.rad = 20
+        self.border = 2
+        self.outline = PURPLE
+        self.fill = PINK
+        self.image = pygame.Surface((40,40), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, self.outline, (20,20), self.rad, self.border)
+        pygame.draw.circle(self.image, self.fill, (20,20), self.rad-2, 0)
+        self.rect = self.image.get_rect()
+
+    def update(self):
+        self.rad -= 1
+        self.image.fill((0,0,0,0))
+        pygame.draw.circle(self.image, self.outline, (20,20), self.rad, self.border)
+        pygame.draw.circle(self.image, self.fill, (20,20), self.rad-2, 0)
+        if self.rad < 1:
+            self.kill()
 
 class Button():
     def __init__(self, xButton, yButton, image):
@@ -248,6 +270,8 @@ def startGame():
     lineGroup.empty()
     gemGroup.empty()
     skullGroup.empty()
+    particleGroup.empty()
+    beaconGroup.empty()
     ball.rect.x = ((WIDTH // 2)-48) - (ball.rect.width // 2)
     ball.rect.y = ((HEIGHT // 2)-120) - (ball.rect.height // 2)
     startPosition = pygame.mouse.get_pos()
@@ -272,6 +296,9 @@ while True:
                 mx, my = pygame.mouse.get_pos()
                 startPosition = (mx, my + cameraOffsetY)
                 endPosition = startPosition
+                if gameStarted:
+                    beacon = Beacon((mx,my))
+                    beaconGroup.add(beacon)
         if event.type == pygame.MOUSEMOTION and drawing:
             mx, my = pygame.mouse.get_pos()
             endPosition = (mx, my + cameraOffsetY)
@@ -281,6 +308,9 @@ while True:
                 drawing = False
                 mx, my = pygame.mouse.get_pos()
                 endPosition = (mx, my + cameraOffsetY)
+                if gameStarted:
+                    beacon = Beacon((mx,my))
+                    beaconGroup.add(beacon)
                 lineGroup.add(Line(startPosition, endPosition, fillColor=PINK, width=4, outlineColor=PURPLE, outlineThickness=2))
     if not gameStarted:
         if btnStart.draw():
@@ -289,7 +319,8 @@ while True:
             startGame()
     elif not gameOver:
         ballGroup.update(lineGroup)
-        particleGroup.update()
+        particleGroup.update(cameraOffsetY)
+        beaconGroup.update()
         spawnGems()
         spawnSkulls()
         for layer in parallaxLayers:
@@ -312,6 +343,8 @@ while True:
                 screen.blit(skull.image, (skull.rect.x, screenY))
         for line in lineGroup:
             screen.blit(line.image, (line.rect.x, line.rect.y - cameraOffsetY))
+        for beacon in beaconGroup:
+            screen.blit(beacon.image, (beacon.pos[0]-20, beacon.pos[1]-20))
         for particle in particleGroup:
             screenX = particle.pos.x
             screenY = particle.pos.y - cameraOffsetY
@@ -355,3 +388,12 @@ while True:
     # Frame cleanup
     pygame.display.update()
     clock.tick(FPS)
+
+# in this version:
+# particle kill cleanup
+# ball death at screen bottom, not world bottom
+# click and release animations
+
+# desired additions:
+# cursor
+# blocks on the bottom to catch falling ball (after a certain amount of score) that break when hit?
