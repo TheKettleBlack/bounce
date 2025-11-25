@@ -508,7 +508,7 @@ while True:
         pass
 
     # UI
-    if len(floorGroup) > 9 and not victory:
+    if len(floorGroup) > 0 and not victory:
         screenShake = 1
     else:
         screenShake = 0
@@ -531,7 +531,7 @@ while True:
         renderOffset[0] = random.randint(0,4) - 2
         renderOffset[1] = random.randint(0,4) - 2
         # screen.blit(scoreText, (560,10))
-        barPos = (560+renderOffset[0],50+renderOffset[1])
+        barPos = (560+renderOffset[0],210+renderOffset[1])
         barSize = (130,32)
         barProgress = floorProgress/5
         if barProgress == 0:
