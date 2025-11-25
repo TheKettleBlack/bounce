@@ -7,7 +7,7 @@ The object of the game is to get a high score, but more than that, bouncing this
 
 ...and here are some static images:
 
-![bounce! intro](https://github.com/TheKettleBlack/bounce/blob/main/splash.png)
+![bounce! intro](https://github.com/TheKettleBlack/bounce/blob/main/splash_screen.png)
 
 ![bounce! gameplay](https://github.com/TheKettleBlack/bounce/blob/main/gameplay.png)
 
