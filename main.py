@@ -508,7 +508,7 @@ while True:
         pass
 
     # UI
-    if len(floorGroup) > 0 and not victory:
+    if len(floorGroup) > 9 and not victory:
         screenShake = 1
     else:
         screenShake = 0
