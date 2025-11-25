@@ -2,6 +2,7 @@ import pygame
 from sys import exit
 import random
 from particles import Particle
+pygame.mixer.init()
 
 pygame.init()
 pygame.display.set_caption("bounce!")
@@ -20,6 +21,9 @@ GEMWHITE = (231,213,179)
 SKULLDARK = (0,0,0)
 SKULLLIGHT = (59,34,81)
 SKULLWHITE = (216,204,228)
+FLOORDARK = (26,106,169)
+FLOORLIGHT = (100,197,229)
+FLOORWHITE = (174,224,240)
 
 screen = pygame.display.set_mode((WIDTH,HEIGHT))
 clock = pygame.time.Clock()
@@ -31,10 +35,12 @@ gemGroup = pygame.sprite.Group()
 skullGroup = pygame.sprite.GroupSingle()
 particleGroup = pygame.sprite.Group()
 beaconGroup = pygame.sprite.Group()
+floorGroup = pygame.sprite.Group()
 
-# Window icon
+# Window setup
 iconImage = pygame.image.load("img/favicon.png")
 pygame.display.set_icon(iconImage)
+pygame.mouse.set_visible(False)
 
 # Buttons
 playAgainButton = pygame.image.load("img/pa.png").convert_alpha()
@@ -43,9 +49,23 @@ startButton = pygame.image.load("img/splash.png").convert_alpha()
 
 # Game variables
 font = pygame.font.SysFont('Arial', 28)
+cursor = pygame.image.load("img/cursor.png").convert_alpha()
+gemTallyImage = pygame.image.load("img/gem.png").convert_alpha()
+skullTallyImage = pygame.image.load("img/skull.png").convert_alpha()
+floorTallyImage = pygame.image.load("img/floor_small.png").convert_alpha()
+bonkTallyImage = pygame.image.load("img/bonk.png").convert_alpha()
+winImage = pygame.image.load("img/w.png").convert_alpha()
+bonk1Sound = pygame.mixer.Sound("audio/bonk1.mp3")
+bonk2Sound = pygame.mixer.Sound("audio/bonk2.mp3")
+floorSound = pygame.mixer.Sound("audio/floor.mp3")
+gem1Sound = pygame.mixer.Sound("audio/gem1.mp3")
+gem2Sound = pygame.mixer.Sound("audio/gem2.mp3")
+skullSound = pygame.mixer.Sound("audio/skull.mp3")
+victorySound = pygame.mixer.Sound("audio/victory.mp3")
 score = 0
 drawing = False
 drawingAllowed = True
+maxLength = 200
 jumpHeight = 16
 gravity = 0.45
 yVelocity = jumpHeight
@@ -56,6 +76,17 @@ startPosition = (0,0)
 endPosition = (0,0)
 cameraOffsetY = 0
 gameStarted = False
+floorGrid = [0,0,0,0,0,0,0,0,0,0]
+floorProgress = 0
+gemTally = 0
+skullTally = 0
+floorTally = 0
+bonkTally = 0
+screenShake = 0
+victory = False
+victoryTimer = 0
+victoryInterval = 1000
+playedVictory = False
 
 # Background layers
 bgImages = []
@@ -94,7 +125,7 @@ class Ball(pygame.sprite.Sprite):
         self.rect.x = xBall
         self.rect.y = yBall
     def update(self, lineGroup):
-        global xVelocity, yVelocity, gravity, gameOver, cameraOffsetY, score
+        global xVelocity, yVelocity, gravity, gameOver, cameraOffsetY, score, floorProgress, gemTally, skullTally, floorTally, bonkTally, screenShake, victory, victoryTimer
         self.rect.x += xVelocity
         self.rect.y -= yVelocity
 
@@ -107,24 +138,51 @@ class Ball(pygame.sprite.Sprite):
             xVelocity = -xVelocity
 
         yVelocity -= gravity
+        global floorGrid
 
         # Gem collision
         gemsHit = pygame.sprite.spritecollide(ball, gemGroup, True, pygame.sprite.collide_mask)
         for gem in gemsHit:
+            g = random.choice((gem1Sound, gem2Sound))
+            g.play()
+            gemTally += 1
             score+=5
             type = "gem"
             spawnParticles(gem, type)
+            floorProgress += 1
+            if floorProgress >= 5:
+                floorProgress = 0
+                floorTally += 1
+                spawnFloor()
+                if screenShake:
+                    screenShake = 0
+                    victory = True
+                    victoryTimer = pygame.time.get_ticks()
+                    gameOver = True
+                    spawnParticles("victory","victory")
 
         # Skull collision
         skullsHit = pygame.sprite.spritecollide(ball, skullGroup, True, pygame.sprite.collide_mask)
         for skull in skullsHit:
+            skullSound.play()
+            floorSound.play()
+            skullTally += 1
             score-=10
             type = "skull"
             spawnParticles(skull, type)
+            if len(floorGroup) > 0:
+                floorList = floorGroup.sprites()
+                randomFloor = random.choice(floorList)
+                floorGrid[int((randomFloor.rect.x/50)-1)] = 0
+                spawnParticles(randomFloor, type)
+                randomFloor.kill()
 
         # Line Collision
         linesHit = pygame.sprite.spritecollide(ball, lineGroup, True, pygame.sprite.collide_mask)
         for line in linesHit:
+            f = random.choice((bonk1Sound, bonk2Sound))
+            f.play()
+            bonkTally += 1
             x1 = line.startPosition[0]
             y1 = line.startPosition[1]
             x2 = line.endPosition[0]
@@ -138,6 +196,18 @@ class Ball(pygame.sprite.Sprite):
             self.rect.y += normal.y * 3
             score += 1
 
+        # Floor Collision
+        floorsHit = pygame.sprite.spritecollide(ball, floorGroup, True, pygame.sprite.collide_mask)
+        for floor in floorsHit:
+            floorSound.play()
+            yVelocity = abs(yVelocity) * bounceBoost
+            xVelocity = 0
+            self.rect.y -= 4
+            type = "floor"
+            spawnParticles(floor, type)
+            floorGrid[floor.fSlot] = 0
+            lineGroup.empty()
+            
         # Camera
         screenY = self.rect.y - cameraOffsetY
         if screenY < 50:
@@ -145,6 +215,7 @@ class Ball(pygame.sprite.Sprite):
 
         # Game over
         if screenY >= HEIGHT:
+            skullSound.play()
             gameOver = True
 
 ball = Ball(((WIDTH // 2)-64), (HEIGHT // 2)-120)
@@ -155,6 +226,16 @@ class Gem(pygame.sprite.Sprite):
         super().__init__()
         self.image = pygame.image.load('img/gem.png').convert_alpha()
         self.rect = self.image.get_rect(topleft=(xGem,yGem))
+        self.mask = pygame.mask.from_surface(self.image)
+
+class Floor(pygame.sprite.Sprite):
+    def __init__(self, fSlot, cameraOffsetY):
+        super().__init__()
+        self.fSlot = fSlot
+        self.image = pygame.image.load('img/floor.png').convert_alpha()
+        worldY = cameraOffsetY + (HEIGHT - 50)
+        self.rect = self.image.get_rect(topleft=(50 + (fSlot * 50), worldY))
+        # self.rect = self.image.get_rect(topleft=(50+(fSlot*50),750))
         self.mask = pygame.mask.from_surface(self.image)
 
 class Skull(pygame.sprite.Sprite):
@@ -230,55 +311,81 @@ class Button():
             if pygame.mouse.get_pressed()[0] == 1:
                 return True
 
-def spawnParticles(gem, type):
+def spawnParticles(item, type):
     for _ in range(50):
-        worldPos = pygame.math.Vector2(gem.rect.center)
+        if item == "victory":
+            worldPos = pygame.math.Vector2(300, cameraOffsetY + 210)
+        else:
+            worldPos = pygame.math.Vector2(item.rect.center)
         if type == "gem":
             color = random.choice((GEMDARK, GEMLIGHT, GEMWHITE))
-        else:
+        elif type == "skull":
             color = random.choice((SKULLDARK, SKULLLIGHT, SKULLWHITE))
+        elif type == "victory":
+            color = random.choice((PINK, PURPLE, PINK))
+        else:
+            color = random.choice((FLOORDARK, FLOORLIGHT, FLOORWHITE))
         direction = pygame.math.Vector2(random.uniform(-1,1), random.uniform(-1,1))
         if direction.length() == 0:
             direction = pygame.math.Vector2(0,-1)
         else:
             direction = direction.normalize()
-        speed = random.uniform(2, 4)
+        speed = random.uniform(3, 6)
         Particle(particleGroup, (worldPos.x, worldPos.y), color, direction, speed)
 
 def spawnGems():
-    while len(gemGroup) < 5:
+    while len(gemGroup) < 10:
         x = random.randint(50,518)
-        y = random.randint(cameraOffsetY - 1600, cameraOffsetY - 200)
+        y = random.randint(cameraOffsetY - 1200, cameraOffsetY - 200)
         gem = Gem(x,y)
         gemGroup.add(gem)
 
 def spawnSkulls():
     while len(skullGroup) < 1:
         x = random.randint(50,518)
-        y = random.randint(cameraOffsetY - 1600, cameraOffsetY - 200)
+        y = random.randint(cameraOffsetY - 1200, cameraOffsetY - 200)
         skull = Skull(x,y)
         skullGroup.add(skull)
 
+def spawnFloor():
+    emptyFloors = [i for i, x in enumerate(floorGrid) if x == 0]
+    if emptyFloors:
+        random.shuffle(emptyFloors)
+        fslot = emptyFloors[0]
+        floorGrid[fslot] = 1
+        floor = Floor(fslot, previousCameraOffsetY)
+        floorGroup.add(floor)
+
 def startGame():
-    global gameOver, xVelocity, yVelocity, cameraOffsetY, drawing, startPosition, endPosition, score
+    global gameOver, xVelocity, yVelocity, cameraOffsetY, drawing, startPosition, endPosition, score, floorProgress, floorGrid, gemTally, skullTally, floorTally, bonkTally, screenShake, victory, playedVictory
     score = 0
     gameOver = False
     drawing = False
     cameraOffsetY = 0
     xVelocity = 0
     yVelocity = jumpHeight
+    floorProgress = 0
     lineGroup.empty()
     gemGroup.empty()
     skullGroup.empty()
     particleGroup.empty()
     beaconGroup.empty()
+    floorGroup.empty()
+    gemTally = 0
+    skullTally = 0
+    floorTally = 0
+    bonkTally = 0
+    screenShake = 0
+    victory = False
+    playedVictory = False
+    floorGrid = [0,0,0,0,0,0,0,0,0,0]
     ball.rect.x = ((WIDTH // 2)-48) - (ball.rect.width // 2)
     ball.rect.y = ((HEIGHT // 2)-120) - (ball.rect.height // 2)
     startPosition = pygame.mouse.get_pos()
     endPosition = startPosition
 
-btnPlayAgain = Button(204, 300, playAgainButton)
-btnQuit = Button(204, 428, quitButton)
+btnPlayAgain = Button(60, 10, playAgainButton)
+btnQuit = Button(348, 10, quitButton)
 btnStart = Button(0, 0, startButton)
 
 # Start game
@@ -319,6 +426,7 @@ while True:
             startGame()
     elif not gameOver:
         ballGroup.update(lineGroup)
+        previousCameraOffsetY = cameraOffsetY
         particleGroup.update(cameraOffsetY)
         beaconGroup.update()
         spawnGems()
@@ -341,6 +449,9 @@ while True:
                 skull.kill()
             else:
                 screen.blit(skull.image, (skull.rect.x, screenY))
+        for floor in floorGroup:
+            floor.rect.y = cameraOffsetY + (HEIGHT - 50)
+            screen.blit(floor.image, (floor.rect.x, HEIGHT - 50))
         for line in lineGroup:
             screen.blit(line.image, (line.rect.x, line.rect.y - cameraOffsetY))
         for beacon in beaconGroup:
@@ -352,23 +463,23 @@ while True:
                 screen.blit(particle.image, (screenX - particle.rect.width//2, screenY - particle.rect.height//2))
         for ball in ballGroup:
             screen.blit(ball.image, (ball.rect.x, ball.rect.y - cameraOffsetY))
-        if drawing:
-            outlineThickness = 2
-            lineWidth = 4
-            pygame.draw.line(
-                screen,
-                PURPLE,
-                (startPosition[0], startPosition[1] - cameraOffsetY),
-                (endPosition[0],   endPosition[1]   - cameraOffsetY),
-                lineWidth + outlineThickness*2
-            )
-            pygame.draw.line(
-                screen,
-                PINK,
-                (startPosition[0], startPosition[1] - cameraOffsetY),
-                (endPosition[0],   endPosition[1]   - cameraOffsetY),
-                lineWidth
-            )
+        # if drawing:
+        #     outlineThickness = 2
+        #     lineWidth = 4
+        #     pygame.draw.line(
+        #         screen,
+        #         PURPLE,
+        #         (startPosition[0], startPosition[1] - cameraOffsetY),
+        #         (endPosition[0],   endPosition[1]   - cameraOffsetY),
+        #         lineWidth + outlineThickness*2
+        #     )
+        #     pygame.draw.line(
+        #         screen,
+        #         PINK,
+        #         (startPosition[0], startPosition[1] - cameraOffsetY),
+        #         (endPosition[0],   endPosition[1]   - cameraOffsetY),
+        #         lineWidth
+        #     )
     else:
         for layer in parallaxLayers:
             layer.update(cameraOffsetY)
@@ -379,21 +490,82 @@ while True:
         if btnQuit.draw():
             pygame.quit()
             exit()
+        if victory:
+            if not playedVictory:
+                victorySound.play()
+                playedVictory = True
+            now = pygame.time.get_ticks()
+            if now - victoryTimer >= victoryInterval:
+                victoryTimer = now
+                spawnParticles("victory", "victory")
+            screen.blit(winImage, (204,172))
+            particleGroup.update(cameraOffsetY)
+            for particle in particleGroup:
+                screenX = particle.pos.x
+                screenY = particle.pos.y - cameraOffsetY
+                if -50 < screenY < HEIGHT + 50:
+                    screen.blit(particle.image, (screenX - particle.rect.width//2, screenY - particle.rect.height//2))
         pass
 
     # UI
-    scoreText = font.render(f"Score: {score}",True,GEMWHITE)
-    screen.blit(scoreText, (560,10))
+    if len(floorGroup) > 9 and not victory:
+        screenShake = 1
+    else:
+        screenShake = 0
+    # scoreText = font.render(f"Score: {score}",True,GEMWHITE)
+    renderOffset = [0,0]
+    if not screenShake:
+        # screen.blit(scoreText, (560,200))
+        barPos = (560,210)
+        barSize = (130,32)
+        barProgress = floorProgress/5
+        if barProgress == 0:
+            innerWidth = 0
+        else:
+            innerWidth = int(barSize[0]*barProgress)
+        innerBarSize = (innerWidth-4,barSize[1]-4)
+        pygame.draw.rect(screen, GEMWHITE, (barPos,barSize), 2)
+        innerPos = (barPos[0]+2, barPos[1]+2)
+        pygame.draw.rect(screen, MID, (innerPos,innerBarSize), 0)
+    else:
+        renderOffset[0] = random.randint(0,4) - 2
+        renderOffset[1] = random.randint(0,4) - 2
+        # screen.blit(scoreText, (560,10))
+        barPos = (560+renderOffset[0],50+renderOffset[1])
+        barSize = (130,32)
+        barProgress = floorProgress/5
+        if barProgress == 0:
+            innerWidth = 0
+        else:
+            innerWidth = int(barSize[0]*barProgress)
+        innerBarSize = (innerWidth-4,barSize[1]-4)
+        pygame.draw.rect(screen, PURPLE, (barPos,barSize), 2)
+        innerPos = (barPos[0]+2, barPos[1]+2)
+        pygame.draw.rect(screen, PINK, (innerPos,innerBarSize), 0)
+    screen.blit(bonkTallyImage, (560,10))
+    screen.blit(font.render(str(bonkTally),True,GEMWHITE), (602,10))
+    screen.blit(gemTallyImage, (560,60))
+    screen.blit(font.render(str(gemTally),True,GEMWHITE), (602,60))
+    screen.blit(skullTallyImage, (560,110))
+    screen.blit(font.render(str(skullTally),True,GEMWHITE), (602,110))
+    screen.blit(floorTallyImage, (560,160))
+    screen.blit(font.render(str(floorTally),True,GEMWHITE), (602,160))
 
     # Frame cleanup
+    mx, my = pygame.mouse.get_pos()
+    screen.blit(cursor, (mx,my))
     pygame.display.update()
     clock.tick(FPS)
 
-# in this version:
-# particle kill cleanup
-# ball death at screen bottom, not world bottom
-# click and release animations
-
 # desired additions:
-# cursor
-# blocks on the bottom to catch falling ball (after a certain amount of score) that break when hit?
+# better win screen
+# better ice blocks
+# sound effects
+
+# did
+# added beacons
+# added cursor
+# added bottom blocks
+# changed skull behavior, clearing 1 random floor
+# changed # and spawn height of gems
+# changed spawn height of skulls
