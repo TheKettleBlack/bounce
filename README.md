@@ -17,6 +17,8 @@ The object of the game is to fill the bottom of the screen with floor tiles whic
 
 -sound toggle
 
+-splash only play area
+
 0.0.3 11/25/25
 
 -added victory condition
