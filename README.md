@@ -11,6 +11,12 @@ The object of the game is to fill the bottom of the screen with floor tiles whic
 
 ![bounce! gameplay](https://github.com/TheKettleBlack/bounce/blob/main/screenshot1.png)
 
+0.0.4 11/26/25
+
+-new bonk sounds
+
+-sound toggle
+
 0.0.3 11/25/25
 
 -added victory condition
