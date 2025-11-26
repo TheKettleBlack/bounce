@@ -45,7 +45,7 @@ pygame.mouse.set_visible(False)
 # Buttons
 playAgainButton = pygame.image.load("img/pa.png").convert_alpha()
 quitButton = pygame.image.load("img/q.png").convert_alpha()
-startButton = pygame.image.load("img/splash.png").convert_alpha()
+startButton = pygame.image.load("img/splash1.png").convert_alpha()
 
 # Game variables
 font = pygame.font.SysFont('Arial', 28)
@@ -55,6 +55,8 @@ skullTallyImage = pygame.image.load("img/skull.png").convert_alpha()
 floorTallyImage = pygame.image.load("img/floor_small.png").convert_alpha()
 bonkTallyImage = pygame.image.load("img/bonk.png").convert_alpha()
 winImage = pygame.image.load("img/w.png").convert_alpha()
+soundOnImage = pygame.image.load("img/s.png").convert_alpha()
+soundOffImage = pygame.image.load("img/so.png").convert_alpha()
 bonk1Sound = pygame.mixer.Sound("audio/bonk1.mp3")
 bonk2Sound = pygame.mixer.Sound("audio/bonk2.mp3")
 floorSound = pygame.mixer.Sound("audio/floor.mp3")
@@ -62,6 +64,8 @@ gem1Sound = pygame.mixer.Sound("audio/gem1.mp3")
 gem2Sound = pygame.mixer.Sound("audio/gem2.mp3")
 skullSound = pygame.mixer.Sound("audio/skull.mp3")
 victorySound = pygame.mixer.Sound("audio/victory.mp3")
+soundRect = soundOnImage.get_rect(topleft=(658,758))
+currentSound = soundOnImage
 score = 0
 drawing = False
 drawingAllowed = True
@@ -87,6 +91,7 @@ victory = False
 victoryTimer = 0
 victoryInterval = 1000
 playedVictory = False
+sound = True
 
 # Background layers
 bgImages = []
@@ -143,8 +148,9 @@ class Ball(pygame.sprite.Sprite):
         # Gem collision
         gemsHit = pygame.sprite.spritecollide(ball, gemGroup, True, pygame.sprite.collide_mask)
         for gem in gemsHit:
-            g = random.choice((gem1Sound, gem2Sound))
-            g.play()
+            if sound:
+                g = random.choice((gem1Sound, gem2Sound))
+                g.play()
             gemTally += 1
             score+=5
             type = "gem"
@@ -164,8 +170,9 @@ class Ball(pygame.sprite.Sprite):
         # Skull collision
         skullsHit = pygame.sprite.spritecollide(ball, skullGroup, True, pygame.sprite.collide_mask)
         for skull in skullsHit:
-            skullSound.play()
-            floorSound.play()
+            if sound:
+                skullSound.play()
+                floorSound.play()
             skullTally += 1
             score-=10
             type = "skull"
@@ -180,8 +187,9 @@ class Ball(pygame.sprite.Sprite):
         # Line Collision
         linesHit = pygame.sprite.spritecollide(ball, lineGroup, True, pygame.sprite.collide_mask)
         for line in linesHit:
-            f = random.choice((bonk1Sound, bonk2Sound))
-            f.play()
+            if sound:
+                f = random.choice((bonk1Sound, bonk2Sound))
+                f.play()
             bonkTally += 1
             x1 = line.startPosition[0]
             y1 = line.startPosition[1]
@@ -199,7 +207,8 @@ class Ball(pygame.sprite.Sprite):
         # Floor Collision
         floorsHit = pygame.sprite.spritecollide(ball, floorGroup, True, pygame.sprite.collide_mask)
         for floor in floorsHit:
-            floorSound.play()
+            if sound:
+                floorSound.play()
             yVelocity = abs(yVelocity) * bounceBoost
             xVelocity = 0
             self.rect.y -= 4
@@ -215,7 +224,8 @@ class Ball(pygame.sprite.Sprite):
 
         # Game over
         if screenY >= HEIGHT:
-            skullSound.play()
+            if sound:
+                skullSound.play()
             gameOver = True
 
 ball = Ball(((WIDTH // 2)-64), (HEIGHT // 2)-120)
@@ -386,7 +396,7 @@ def startGame():
 
 btnPlayAgain = Button(60, 10, playAgainButton)
 btnQuit = Button(348, 10, quitButton)
-btnStart = Button(0, 0, startButton)
+btnStart = Button(50, 0, startButton)
 
 # Start game
 startGame()
@@ -398,6 +408,16 @@ while True:
             pygame.quit()
             exit()
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if soundRect.collidepoint(pygame.mouse.get_pos()):
+                drawingAllowed = False
+                if sound:
+                    sound = False
+                    currentSound = soundOffImage
+                    print("Sound off")
+                else:
+                    sound = True
+                    currentSound = soundOnImage
+                    print("Sound on")
             if drawingAllowed:
                 drawing = True
                 mx, my = pygame.mouse.get_pos()
@@ -420,6 +440,8 @@ while True:
                     beaconGroup.add(beacon)
                 lineGroup.add(Line(startPosition, endPosition, fillColor=PINK, width=4, outlineColor=PURPLE, outlineThickness=2))
     if not gameStarted:
+        for layer in parallaxLayers:
+            layer.draw(screen)
         if btnStart.draw():
             drawingAllowed = False
             gameStarted = True
@@ -492,7 +514,8 @@ while True:
             exit()
         if victory:
             if not playedVictory:
-                victorySound.play()
+                if sound:
+                    victorySound.play()
                 playedVictory = True
             now = pygame.time.get_ticks()
             if now - victoryTimer >= victoryInterval:
@@ -550,7 +573,7 @@ while True:
     screen.blit(font.render(str(skullTally),True,GEMWHITE), (602,110))
     screen.blit(floorTallyImage, (560,160))
     screen.blit(font.render(str(floorTally),True,GEMWHITE), (602,160))
-
+    screen.blit(currentSound, soundRect)
     # Frame cleanup
     mx, my = pygame.mouse.get_pos()
     screen.blit(cursor, (mx,my))
